@@ -1,11 +1,11 @@
 # BEERS_UTILS
 
-## Installation on PMACS Cluster for Developers
+## Installation using python virtual environments
 
-Somewhere under your home directory, clone the develop branch of the BEERS_UTILS respository:
+Somewhere under your home directory, clone the BEERS_UTILS repository:
 
 ```bash
-git clone -b develop git@github.com:itmat/BEERS_UTILS.git
+git clone git@github.com:itmat/BEERS_UTILS.git
 ```
 
 At the moment, there is no need to setup BEERS_UTILS in its own virtual environment.
