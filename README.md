@@ -25,4 +25,4 @@ beers_utils package and subpackages from this virtual environment.
 
 ## Funding
 
-Work on CAMPAREE is supported by R21-LM012763-01A1: “The Next Generation of RNA-Seq Simulators for Benchmarking Analyses” (PI: Gregory R. Grant).
+Work on this project is supported by R21-LM012763-01A1: “The Next Generation of RNA-Seq Simulators for Benchmarking Analyses” (PI: Gregory R. Grant).
