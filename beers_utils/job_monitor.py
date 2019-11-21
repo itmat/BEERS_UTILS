@@ -1,8 +1,9 @@
 import os
 import sys
 import time
-from beers_utils.constants import CONSTANTS,SUPPORTED_SCHEDULER_MODES
+from beers_utils.constants import CONSTANTS
 from beers_utils.general_utils import BeersUtilsException
+from beers_utils.abstract_pipeline_step import AbstractPipelineStep
 import beers_utils.job_scheduler_provider
 
 class JobMonitor:
@@ -12,11 +13,11 @@ class JobMonitor:
     (either due to success or error/failure).
     """
 
-    #Hash mapping step names (keys) to AbstractPipelineStep objects (values).
-    #Used in code checking job output validity. Provides generalized way of
-    #retrieving job-specific Class objects to run static methods when validating
-    #job output.
-    PIPELINE_STEPS = {}
+    # Hash mapping step names (keys) to AbstractPipelineStep objects (values).
+    # Used in code checking job output validity. Provides generalized way of
+    # retrieving job-specific Class objects to run static methods when validating
+    # job output.
+    _PIPELINE_STEPS = {}
 
     def __init__(self, output_directory_path, scheduler_name, max_resub_limit=3,
                  default_num_processors=None, default_memory_in_mb=None):
@@ -61,7 +62,6 @@ class JobMonitor:
             scheduler_class = beers_utils.job_scheduler_provider.SCHEDULERS.get(scheduler_name)
             self.job_scheduler = scheduler_class(default_num_processors=default_num_processors,
                                                  default_memory_in_mb=default_memory_in_mb)
-
 
     def is_processing_complete(self):
         """
@@ -233,6 +233,12 @@ class JobMonitor:
         sample_id_for_job = None
         if sample:
             sample_id_for_job = sample.sample_id
+
+        if not JobMonitor.has_pipline_step(step_name):
+            raise JobMonitorException(f"ERROR: Could not add job {job_id} to the "
+                                      f"scheduler because its associated pipeline "
+                                      f"step ({step_name}) is not currently tracked "
+                                      f"by the job monitor.")
 
         submitted_job = Job(job_id, job_command, sample_id_for_job, step_name,
                             scheduler_arguments, validation_attributes,
@@ -450,6 +456,66 @@ class JobMonitor:
 
         return job_queue_state
 
+    @staticmethod
+    def add_pipeline_step(step_name, step_class):
+        """Add a step to _PIPELINE_STEPS, while checking for compatible class.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+        step_class : AbstractPipelineStep
+            A pipeline step object.
+
+        """
+        if isinstance(step_class, AbstractPipelineStep):
+            JobMonitor._PIPELINE_STEPS[step_name] = step_class
+        else:
+            raise JobMonitorException(f"The {step_name} could not be added to "
+                                      f"pipeline because it is not an instance "
+                                      f"or subclass of AbstractPipelineStep.")
+
+    @staticmethod
+    def has_pipline_step(step_name):
+        """Check if step is in the dictionary of pipeline steps tracked by the
+        job monitor.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+
+        Returns
+        -------
+        boolean
+            True - There is an entry in dictionary of pipeline steps matching the
+                   given step name.
+            False - There are no entries in the dictionary of pipeline steps
+                    matching the given step name.
+
+        """
+        return step_name in JobMonitor._PIPELINE_STEPS
+
+    @staticmethod
+    def get_pipline_step(step_name):
+        """Retrieve step object to dictionary of pipeline steps tracked by the
+        job monitor.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+
+        Returns
+        -------
+        AbstractPipelineStep
+            The pipeline step object matching the name of the class specified by
+            the parameter. 'None' if no object in the dictionary of pipeline
+            steps matches the given step name.
+
+        """
+        return JobMonitor._PIPELINE_STEPS.get(step_name, None)
+
 
 class Job:
     """
@@ -609,28 +675,14 @@ class Job:
             elif scheduler_job_status == "FAILED":
                 job_status = "FAILED"
             elif scheduler_job_status == "COMPLETED":
-                # TODO: Should probably find some way of generalizing this, rather
-                #       than specifying it here. Or create this list elsewhere.
+
                 #Check output files
-                if self.step_name in ["GenomeAlignmentStep",
-                                      "GenomeBamIndexStep",
-                                      "VariantsFinderStep",
-                                      "IntronQuantificationStep",
-                                      "VariantsCompilationStep",
-                                      "BeagleStep",
-                                      "GenomeBuilderStep",
-                                      "UpdateAnnotationForGenomeStep",
-                                      "TranscriptQuantificatAndMoleculeGenerationStep"]:
+                pipeline_step = JobMonitor.get_pipline_step(self.step_name)
 
-                    pipeline_step = JobMonitor.PIPELINE_STEPS[self.step_name]
-
-                    if pipeline_step.is_output_valid(self.validation_attributes):
-                        job_status = "COMPLETED"
-                    else:
-                        job_status = "FAILED"
-
+                if pipeline_step.is_output_valid(self.validation_attributes):
+                    job_status = "COMPLETED"
                 else:
-                    raise NotImplementedError()
+                    job_status = "FAILED"
 
             #TODO: Right now I'm just assuming anything that isn't found by bjobs
             #      is a failed job and should be restarted. Strictly speaking,
