@@ -616,15 +616,15 @@ class Job:
                 f"      data_directory: {self.data_directory}")
 
     def __repr__(self):
-        return (f"Job(job_id={self.job_id},"
-                f" job_command={self.job_command},"
-                f" sample_id={self.sample_id},"
-                f" step_name={self.step_name},"
+        return (f"Job(job_id=\"{self.job_id}\","
+                f" job_command=\"{self.job_command}\","
+                f" sample_id=\"{self.sample_id}\","
+                f" step_name=\"{self.step_name}\","
                 f" scheduler_arguments=\"{repr(self.scheduler_arguments)}\","
                 f" validation_attributes=\"{repr(self.validation_attributes)}\","
-                f" output_directory={self.output_directory},"
+                f" output_directory_path=\"{self.output_directory}\","
                 f" system_id={self.system_id},"
-                f" \"{repr(self.dependency_list)}\")")
+                f" dependency_list={repr(list(self.dependency_list))})")
 
     def add_dependencies(self, dependency_job_ids):
         """
