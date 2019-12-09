@@ -49,9 +49,9 @@ class JobMonitor:
         #Stores list of samples in dictionary indexed by sample ID.
         self.samples_by_ids = {}
 
-        # Dictionary mapping step names (keys) to AbstractPipelineStep objects
-        # (values). Provides generalized way of retrieving job-specific Class
-        # objects to run static methods when validating job output.
+        # Dictionary mapping step names (keys) to AbstractPipelineStep class
+        # (values). Provides generalized way of retrieving job-specific Classes
+        # to run static methods when validating job output.
         self.pipeline_steps = {}
 
         self.scheduler_name = scheduler_name
@@ -71,15 +71,15 @@ class JobMonitor:
         step_name : string
             Name of the pipeline step class.
         step_class : AbstractPipelineStep
-            A pipeline step object.
+            A pipeline step class that extends AbstractPipelineStep, or one of.
+            its subclasses.
 
         """
-        if isinstance(step_class, AbstractPipelineStep):
+        if issubclass(step_class, AbstractPipelineStep):
             self.pipeline_steps[step_name] = step_class
         else:
             raise JobMonitorException(f"{step_name} could not be added to pipeline "
-                                      f"because it is not an instance or subclass "
-                                      f"of AbstractPipelineStep.\n")
+                                      f"because it is not a subclass of AbstractPipelineStep.\n")
 
     def has_pipeline_step(self, step_name):
         """Check if step is in the dictionary of pipeline steps tracked by the
@@ -102,7 +102,7 @@ class JobMonitor:
         return step_name in self.pipeline_steps
 
     def get_pipeline_step(self, step_name):
-        """Retrieve step object to dictionary of pipeline steps tracked by the
+        """Retrieve step class from dictionary of pipeline steps tracked by the
         job monitor.
 
         Parameters
@@ -113,8 +113,8 @@ class JobMonitor:
         Returns
         -------
         AbstractPipelineStep
-            The pipeline step object matching the name of the class specified by
-            the parameter. 'None' if no object in the dictionary of pipeline
+            The pipeline step class matching the name of the class specified by
+            the parameter. 'None' if no class in the dictionary of pipeline
             steps matches the given step name.
 
         """
@@ -177,6 +177,12 @@ class JobMonitor:
         #      to the process list and those modifications are only carried out
         #      within the job_monitor class (e.g. after the is_processing_complete
         #      function finishes).
+
+    #TODO: Might want to make the mark_job_completed() and mark_job_for_resubmission()
+    #      methods a little safer, by having them check for the presence of the
+    #      given job ID in the running_list. This isn't currently an issue since
+    #      these methods are only used by the is_processing_complete() methods,
+    #      which has already peformed this check before calling them.
 
     def mark_job_completed(self, job_id):
         """
@@ -360,11 +366,17 @@ class JobMonitor:
         #       and then behaves accordingly. Or maybe it simply infers what to do with
         #       the job based on which queue it's located in. There's a ton of overlap
         #       between these two functions right now.
-        if not job_id in self.pending_list:
-            raise JobMonitorException(f"Job missing from the list of pending jobs.\n")
-        elif job_id in self.running_list or job_id in self.resubmission_list:
+
+        # running_list and resubmission_list need to be checked before pending_list.
+        # If a job is already in the running_list, it should be absent from the
+        # pending list. If we tested for presence in the pending_list first, it
+        # would always catch cases where jobs were already in the running or
+        # resubmission list, making it unclear what might be causing the exception.
+        if job_id in self.running_list or job_id in self.resubmission_list:
             raise JobMonitorException(f"Job is already in the list of running jobs or "
                                       f"jobs marked for resubmission.\n")
+        elif not job_id in self.pending_list:
+            raise JobMonitorException(f"Job missing from the list of pending jobs.\n")
         else:
             job = self.pending_list[job_id]
 
@@ -411,12 +423,18 @@ class JobMonitor:
         #       and then behaves accordingly. Or maybe it simply infers what to do with
         #       the job based on which queue it's located in. There's a ton of overlap
         #       between these two functions right now.
-        if not job_id in self.resubmission_list:
-            raise JobMonitorException(f"Resubmitted job missing from the list of jobs "
-                                      f"marked for resubmission.\n")
-        elif job_id in self.running_list or job_id in self.pending_list:
+
+        # running_list and pending_list need to be checked before resubmission_list.
+        # If a job is already in the running_list, it should be absent from the
+        # resubmission list. If we tested for presence in the resubmission_list
+        # first, it would always catch cases where jobs were already in the running
+        # or pending list, making it unclear what might be causing the exception.
+        if job_id in self.running_list or job_id in self.pending_list:
             raise JobMonitorException(f"Resubmitted job is already in the list of "
                                       f"running or pending jobs.\n")
+        elif not job_id in self.resubmission_list:
+            raise JobMonitorException(f"Resubmitted job missing from the list of jobs "
+                                      f"marked for resubmission.\n")
         else:
             job = self.resubmission_list[job_id]
 
@@ -473,6 +491,11 @@ class JobMonitor:
         #sample_id doesn't correspond to any sample stored in the dict.
         return self.samples_by_ids.get(sample_id)
 
+    #TODO: Might want to make the are_dependencies_satisfied() method a little
+    #      safer by having it check for the presence of the given job ID in the
+    #      pending_list. This isn't currently an issue since this method is only
+    #      used by the monitor_until_all_jobs_completed() method, which performs
+    #      this check first.
     def are_dependencies_satisfied(self, job_id):
         """
         Given a job_id, check to see if all of its dependencies are satisfied
