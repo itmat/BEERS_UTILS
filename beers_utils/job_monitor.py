@@ -1,8 +1,9 @@
 import os
 import sys
 import time
-from beers_utils.constants import CONSTANTS,SUPPORTED_SCHEDULER_MODES
+from beers_utils.constants import CONSTANTS
 from beers_utils.general_utils import BeersUtilsException
+from beers_utils.abstract_pipeline_step import AbstractPipelineStep
 import beers_utils.job_scheduler_provider
 
 class JobMonitor:
@@ -11,12 +12,6 @@ class JobMonitor:
     pipeline. It checks for jobs that are pending, running, stalled, or halted
     (either due to success or error/failure).
     """
-
-    #Hash mapping step names (keys) to AbstractPipelineStep objects (values).
-    #Used in code checking job output validity. Provides generalized way of
-    #retrieving job-specific Class objects to run static methods when validating
-    #job output.
-    PIPELINE_STEPS = {}
 
     def __init__(self, output_directory_path, scheduler_name, max_resub_limit=3,
                  default_num_processors=None, default_memory_in_mb=None):
@@ -54,13 +49,79 @@ class JobMonitor:
         #Stores list of samples in dictionary indexed by sample ID.
         self.samples_by_ids = {}
 
+        # Dictionary mapping step names (keys) to AbstractPipelineStep class
+        # (values). Provides generalized way of retrieving job-specific Classes
+        # to run static methods when validating job output.
+        self.pipeline_steps = {}
+
         self.scheduler_name = scheduler_name
-        if self.scheduler_name == "serial":
-            self.job_scheduler = None
+        supported_schedulers = beers_utils.job_scheduler_provider.SCHEDULERS.list_supported_schedulers()
+        if scheduler_name not in supported_schedulers:
+            raise JobMonitorException(f"ERROR: {scheduler_name} is not a supported "
+                                      f"scheduler. Should be one of the following: "
+                                      f"{ ','.join(supported_schedulers) }.")
         else:
             scheduler_class = beers_utils.job_scheduler_provider.SCHEDULERS.get(scheduler_name)
             self.job_scheduler = scheduler_class(default_num_processors=default_num_processors,
                                                  default_memory_in_mb=default_memory_in_mb)
+
+    def add_pipeline_step(self, step_name, step_class):
+        """Add a step to the dictionary of pipeline steps tracked by the job
+        monitor, while checking for compatible class.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+        step_class : AbstractPipelineStep
+            A pipeline step class that extends AbstractPipelineStep, or one of.
+            its subclasses.
+
+        """
+        if issubclass(step_class, AbstractPipelineStep):
+            self.pipeline_steps[step_name] = step_class
+        else:
+            raise JobMonitorException(f"{step_name} could not be added to pipeline "
+                                      f"because it is not a subclass of AbstractPipelineStep.\n")
+
+    def has_pipeline_step(self, step_name):
+        """Check if step is in the dictionary of pipeline steps tracked by the
+        job monitor.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+
+        Returns
+        -------
+        boolean
+            True - There is an entry in dictionary of pipeline steps matching the
+                   given step name.
+            False - There are no entries in the dictionary of pipeline steps
+                    matching the given step name.
+
+        """
+        return step_name in self.pipeline_steps
+
+    def get_pipeline_step(self, step_name):
+        """Retrieve step class from dictionary of pipeline steps tracked by the
+        job monitor.
+
+        Parameters
+        ----------
+        step_name : string
+            Name of the pipeline step class.
+
+        Returns
+        -------
+        AbstractPipelineStep
+            The pipeline step class matching the name of the class specified by
+            the parameter. 'None' if no class in the dictionary of pipeline
+            steps matches the given step name.
+
+        """
+        return self.pipeline_steps.get(step_name, None)
 
 
     def is_processing_complete(self):
@@ -77,23 +138,14 @@ class JobMonitor:
 
         """
         # TODO: Could we merge this function with monitor_until_all_jobs_completed()?
-        #       Would there every be any need to run is_processing_complete() alone?
-
-        # TODO: Maybe in stead of catching a serial scheduler here, we should make
-        #       a "serial" scheduler that implements the AbstractJobScheduler class,
-        #       that way it ceases to be a special case that needs extra code to
-        #       handle.
-
-        # If running in serial mode, the job monitor isn't being used to track
-        # the progress of any processes.
-        if self.scheduler_name == "serial":
-            return True
+        #       Would there ever be any need to run is_processing_complete() alone?
 
         #Note, I need to force python to create a copy of the running_list so
         #that if/when the code below removes jobs from the running_list it won't
         #cause python to throw a "dictionary changed size during iteration" error.
         for job_id, job in dict(self.running_list).items():
-            job_status = job.check_job_status(self.job_scheduler)
+            pipeline_step = self.get_pipeline_step(job.step_name)
+            job_status = job.check_job_status(pipeline_step, self.job_scheduler)
             if job_status == "FAILED":
                 self.mark_job_for_resubmission(job_id)
             elif job_status == "COMPLETED":
@@ -118,6 +170,12 @@ class JobMonitor:
         #      to the process list and those modifications are only carried out
         #      within the job_monitor class (e.g. after the is_processing_complete
         #      function finishes).
+
+    #TODO: Might want to make the mark_job_completed() and mark_job_for_resubmission()
+    #      methods a little safer, by having them check for the presence of the
+    #      given job ID in the running_list. This isn't currently an issue since
+    #      these methods are only used by the is_processing_complete() methods,
+    #      which has already peformed this check before calling them.
 
     def mark_job_completed(self, job_id):
         """
@@ -204,7 +262,10 @@ class JobMonitor:
             of samples stored in the JobMonitor if it's not already there. If the
             job is not associated with a specific sample, set to 'None'.
         step_name : string
-            Name of the step in the pipeline associated with monitored job.
+            Name of the step in the pipeline associated with monitored job. This
+            must match an entry in the dictionary of pipeline steps tracked by the
+            job monitor (this dictionary can be accessed/modified with the
+            *_pipeline_step() methods).
         scheduler_arguments : dict
             Dictionary of arguments passed to the job scheduler when submitting
             the job. These will be passed on to the submit_job() method of the
@@ -233,6 +294,12 @@ class JobMonitor:
         sample_id_for_job = None
         if sample:
             sample_id_for_job = sample.sample_id
+
+        if not self.has_pipeline_step(step_name):
+            raise JobMonitorException(f"ERROR: Could not add job {job_id} to the "
+                                      f"scheduler because its associated pipeline "
+                                      f"step ({step_name}) is not currently tracked "
+                                      f"by the job monitor.")
 
         submitted_job = Job(job_id, job_command, sample_id_for_job, step_name,
                             scheduler_arguments, validation_attributes,
@@ -292,11 +359,17 @@ class JobMonitor:
         #       and then behaves accordingly. Or maybe it simply infers what to do with
         #       the job based on which queue it's located in. There's a ton of overlap
         #       between these two functions right now.
-        if not job_id in self.pending_list:
-            raise JobMonitorException(f"Job missing from the list of pending jobs.\n")
-        elif job_id in self.running_list or job_id in self.resubmission_list:
+
+        # running_list and resubmission_list need to be checked before pending_list.
+        # If a job is already in the running_list, it should be absent from the
+        # pending list. If we tested for presence in the pending_list first, it
+        # would always catch cases where jobs were already in the running or
+        # resubmission list, making it unclear what might be causing the exception.
+        if job_id in self.running_list or job_id in self.resubmission_list:
             raise JobMonitorException(f"Job is already in the list of running jobs or "
                                       f"jobs marked for resubmission.\n")
+        elif not job_id in self.pending_list:
+            raise JobMonitorException(f"Job missing from the list of pending jobs.\n")
         else:
             job = self.pending_list[job_id]
 
@@ -343,12 +416,18 @@ class JobMonitor:
         #       and then behaves accordingly. Or maybe it simply infers what to do with
         #       the job based on which queue it's located in. There's a ton of overlap
         #       between these two functions right now.
-        if not job_id in self.resubmission_list:
-            raise JobMonitorException(f"Resubmitted job missing from the list of jobs "
-                                      f"marked for resubmission.\n")
-        elif job_id in self.running_list or job_id in self.pending_list:
+
+        # running_list and pending_list need to be checked before resubmission_list.
+        # If a job is already in the running_list, it should be absent from the
+        # resubmission list. If we tested for presence in the resubmission_list
+        # first, it would always catch cases where jobs were already in the running
+        # or pending list, making it unclear what might be causing the exception.
+        if job_id in self.running_list or job_id in self.pending_list:
             raise JobMonitorException(f"Resubmitted job is already in the list of "
                                       f"running or pending jobs.\n")
+        elif not job_id in self.resubmission_list:
+            raise JobMonitorException(f"Resubmitted job missing from the list of jobs "
+                                      f"marked for resubmission.\n")
         else:
             job = self.resubmission_list[job_id]
 
@@ -405,6 +484,11 @@ class JobMonitor:
         #sample_id doesn't correspond to any sample stored in the dict.
         return self.samples_by_ids.get(sample_id)
 
+    #TODO: Might want to make the are_dependencies_satisfied() method a little
+    #      safer by having it check for the presence of the given job ID in the
+    #      pending_list. This isn't currently an issue since this method is only
+    #      used by the monitor_until_all_jobs_completed() method, which performs
+    #      this check first.
     def are_dependencies_satisfied(self, job_id):
         """
         Given a job_id, check to see if all of its dependencies are satisfied
@@ -548,15 +632,15 @@ class Job:
                 f"      data_directory: {self.data_directory}")
 
     def __repr__(self):
-        return (f"Job(job_id={self.job_id},"
-                f" job_command={self.job_command},"
-                f" sample_id={self.sample_id},"
-                f" step_name={self.step_name},"
+        return (f"Job(job_id=\"{self.job_id}\","
+                f" job_command=\"{self.job_command}\","
+                f" sample_id=\"{self.sample_id}\","
+                f" step_name=\"{self.step_name}\","
                 f" scheduler_arguments=\"{repr(self.scheduler_arguments)}\","
                 f" validation_attributes=\"{repr(self.validation_attributes)}\","
-                f" output_directory={self.output_directory},"
+                f" output_directory_path=\"{self.output_directory}\","
                 f" system_id={self.system_id},"
-                f" \"{repr(self.dependency_list)}\")")
+                f" dependency_list={repr(list(self.dependency_list))})")
 
     def add_dependencies(self, dependency_job_ids):
         """
@@ -571,17 +655,18 @@ class Job:
         for job_id in dependency_job_ids:
             self.dependency_list.add(job_id)
 
-    def check_job_status(self, scheduler=None):
+    def check_job_status(self, pipeline_step, scheduler):
         """
         Determine job's current run status based on system's job handler status
         and the job's output files.
 
         Parameters
         ----------
+        pipeline_step : AbstractPipelineStep
+            Class corresponding to the pipeline step performed by the job. Used
+            to access static methods to validate the job's output.
         scheduler : AbstractJobScheduler
             Interface to the system's job scheduler currently tracking the job.
-            If no job scheduler provided, the method assumes the job is running
-            locally in serial mode [default].
 
         Returns
         -------
@@ -598,8 +683,6 @@ class Job:
 
         if self.system_id is None:
             job_status = "WAITING_FOR_DEPENDENCY"
-        elif not scheduler:
-            job_status = "COMPLETED"
         else:
 
             scheduler_job_status = scheduler.check_job_status(self.system_id)
@@ -609,28 +692,12 @@ class Job:
             elif scheduler_job_status == "FAILED":
                 job_status = "FAILED"
             elif scheduler_job_status == "COMPLETED":
-                # TODO: Should probably find some way of generalizing this, rather
-                #       than specifying it here. Or create this list elsewhere.
+
                 #Check output files
-                if self.step_name in ["GenomeAlignmentStep",
-                                      "GenomeBamIndexStep",
-                                      "VariantsFinderStep",
-                                      "IntronQuantificationStep",
-                                      "VariantsCompilationStep",
-                                      "BeagleStep",
-                                      "GenomeBuilderStep",
-                                      "UpdateAnnotationForGenomeStep",
-                                      "TranscriptQuantificatAndMoleculeGenerationStep"]:
-
-                    pipeline_step = JobMonitor.PIPELINE_STEPS[self.step_name]
-
-                    if pipeline_step.is_output_valid(self.validation_attributes):
-                        job_status = "COMPLETED"
-                    else:
-                        job_status = "FAILED"
-
+                if pipeline_step.is_output_valid(self.validation_attributes):
+                    job_status = "COMPLETED"
                 else:
-                    raise NotImplementedError()
+                    job_status = "FAILED"
 
             #TODO: Right now I'm just assuming anything that isn't found by bjobs
             #      is a failed job and should be restarted. Strictly speaking,
