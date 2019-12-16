@@ -9,23 +9,33 @@ class TestJobMonitor(unittest.TestCase):
     tests actually submit jobs or require a job monitoring system to be installed
     on the system where these tests are running.
 
+    Run the following command from the main BEERS_UTILS directory:
+    python -m unittest -v beers_utils/test_job_monitor.py
+
     """
 
     def setUp(self):
         self.test_monitor = JobMonitor("./", "serial")
+        # Replacing the existing scheduler means I don't need to register this
+        # testing scheduler with job_scheduler_provider.
         self.test_monitor.scheduler_name = "TestingScheduler"
         self.test_monitor.job_scheduler = TestingScheduler()
         self.testing_step_classname = "TestingStep"
+        """
+            def test_Monitor_invalid_scheduler(self):
+                with self.assertRaisesRegex(JobMonitorException, "ERROR: .* is not a supported scheduler."):
+                    new_test_monitor = JobMonitor("./", "NotaScheduler")
+        """
 
     def test_Monitor_add_valid_pipeline_step(self):
         test_monitor = self.test_monitor
-        valid_testing_step = TestingStep()
+        valid_testing_step = TestingStep
         test_monitor.add_pipeline_step(self.testing_step_classname, valid_testing_step)
         self.assertTrue(test_monitor.pipeline_steps[self.testing_step_classname] == valid_testing_step)
 
     def test_Monitor_add_invalid_pipeline_step(self):
         test_monitor = self.test_monitor
-        invalid_testing_step = dict()
+        invalid_testing_step = dict
         with self.assertRaisesRegex(JobMonitorException, "could not be added to pipeline"):
             test_monitor.add_pipeline_step(self.testing_step_classname, invalid_testing_step)
 
@@ -56,19 +66,6 @@ class TestJobMonitor(unittest.TestCase):
         test_monitor.pipeline_steps[self.testing_step_classname] = testing_step
         step_not_in_pipeline = "Not" + self.testing_step_classname
         self.assertFalse(test_monitor.has_pipeline_step(step_not_in_pipeline))
-
-    # If the check_job_status() method isn't provided a scheduler, it assumes
-    # everything is running in serial mode and there is not job monitor in use.
-    def test_Job_check_job_status_completed_no_scheduler(self):
-        test_monitor = self.test_monitor
-        test_monitor.pipeline_steps[self.testing_step_classname] = TestingStep()
-        test_job_status = "COMPLETED"
-        test_job = Job(job_id="1", job_command="", sample_id="1",
-                       step_name=self.testing_step_classname,
-                       scheduler_arguments="None", validation_attributes="None",
-                       output_directory_path="", system_id=test_job_status,
-                       dependency_list=[])
-        self.assertTrue(test_job.check_job_status(self.testing_step_classname) == "COMPLETED")
 
     def test_Job_check_job_status_completed(self):
         test_monitor = self.test_monitor

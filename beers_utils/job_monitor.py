@@ -55,8 +55,11 @@ class JobMonitor:
         self.pipeline_steps = {}
 
         self.scheduler_name = scheduler_name
-        if self.scheduler_name == "serial":
-            self.job_scheduler = None
+        supported_schedulers = beers_utils.job_scheduler_provider.SCHEDULERS.list_supported_schedulers()
+        if scheduler_name not in supported_schedulers:
+            raise JobMonitorException(f"ERROR: {scheduler_name} is not a supported "
+                                      f"scheduler. Should be one of the following: "
+                                      f"{ ','.join(supported_schedulers) }.")
         else:
             scheduler_class = beers_utils.job_scheduler_provider.SCHEDULERS.get(scheduler_name)
             self.job_scheduler = scheduler_class(default_num_processors=default_num_processors,
@@ -136,16 +139,6 @@ class JobMonitor:
         """
         # TODO: Could we merge this function with monitor_until_all_jobs_completed()?
         #       Would there ever be any need to run is_processing_complete() alone?
-
-        # TODO: Maybe instead of catching a serial scheduler here, we should make
-        #       a "serial" scheduler that implements the AbstractJobScheduler class,
-        #       that way it ceases to be a special case that needs extra code to
-        #       handle.
-
-        # If running in serial mode, the job monitor isn't being used to track
-        # the progress of any processes.
-        if self.scheduler_name == "serial":
-            return True
 
         #Note, I need to force python to create a copy of the running_list so
         #that if/when the code below removes jobs from the running_list it won't
@@ -662,7 +655,7 @@ class Job:
         for job_id in dependency_job_ids:
             self.dependency_list.add(job_id)
 
-    def check_job_status(self, pipeline_step, scheduler=None):
+    def check_job_status(self, pipeline_step, scheduler):
         """
         Determine job's current run status based on system's job handler status
         and the job's output files.
@@ -674,8 +667,6 @@ class Job:
             to access static methods to validate the job's output.
         scheduler : AbstractJobScheduler
             Interface to the system's job scheduler currently tracking the job.
-            If no job scheduler provided, the method assumes the job is running
-            locally in serial mode [default].
 
         Returns
         -------
@@ -692,8 +683,6 @@ class Job:
 
         if self.system_id is None:
             job_status = "WAITING_FOR_DEPENDENCY"
-        elif not scheduler:
-            job_status = "COMPLETED"
         else:
 
             scheduler_job_status = scheduler.check_job_status(self.system_id)
