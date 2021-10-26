@@ -3,6 +3,7 @@ from beers_utils.abstract_job_scheduler import AbstractJobScheduler
 #Add classes supporting additional job schedulers here.
 from beers_utils.lsf_job_scheduler import LsfJobScheduler
 from beers_utils.sge_job_scheduler import SgeJobScheduler
+from beers_utils.batch_job_scheduler import BatchJobScheduler
 from beers_utils.serial_job_scheduler import SerialJobScheduler
 
 class JobSchedulerProvider:
@@ -88,4 +89,5 @@ class JobSchedulerException(BeersUtilsException):
 SCHEDULERS = JobSchedulerProvider()
 SCHEDULERS.register_scheduler("lsf", LsfJobScheduler)
 SCHEDULERS.register_scheduler("sge", SgeJobScheduler)
+SCHEDULERS.register_scheduler("batch", BatchJobScheduler)
 SCHEDULERS.register_scheduler("serial", SerialJobScheduler)
