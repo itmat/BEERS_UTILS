@@ -9,13 +9,18 @@ class Molecule:
     disallowed = re.compile((r'[^AGTCN]'))
     # TODO: we are currently allowing 'N' as a base, but should probably not in the future
 
-    def __init__(self, molecule_id, sequence, start=None, cigar=None,
-                 transcript_id=None, source_start=None, source_cigar=None, source_strand='.'):
+    def __init__(self, molecule_id, sequence, start=None, cigar=None, strand='.',
+                 transcript_id=None, source_start=None, source_cigar=None, source_strand='.',
+                 source_chrom=''):
         self.molecule_id = molecule_id
         self.sequence = sequence.strip()
+        self.source_chrom = source_chrom
         self.start = start
         self.source_start = source_start or start
+        # Cigar string relative to the 'parent' molecule, i.e. the previous step this molecule went through
+        # not relative to genome
         self.cigar = cigar
+        # Cigar string relative to a source genome
         self.source_cigar = source_cigar or cigar
         self.source_strand = source_strand
         self.transcript_id = transcript_id
@@ -89,6 +94,7 @@ class Molecule:
         self.sequence = self.sequence[position + 1:]
         assert len(self.sequence) > 0, "A molecule truncation must leave behind a molecule with non-zero length"
         self.cigar = f"{len(self.sequence)}M"
+        #TODO: does not update source_cigar or source_start
 
     def make_fragment(self, start,end):
         """ Return a smaller molecule from this molecule """
@@ -99,7 +105,12 @@ class Molecule:
         frag_cigar = f"{frag_length}M" # Fragments match their parents
         frag_id = Molecule.new_id(self.molecule_id)
 
-        frag = Molecule(frag_id, frag_sequence, start=start, cigar=frag_cigar)
+        frag = Molecule(frag_id, frag_sequence, start=start, cigar=frag_cigar,
+                source_start = self.start + start, # TODO: this is wrong - depends upon source_cigar too
+                source_cigar = self.source_cigar, # TODO: this is wrong - needs to be modified
+                source_strand = self.source_strand,
+                source_chrom=self.source_chrom,
+                )
 
         return frag
 
