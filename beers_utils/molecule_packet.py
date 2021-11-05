@@ -61,9 +61,9 @@ class MoleculePacket:
                 mol = Molecule(
                         Molecule.new_id(transcript_id),
                         sequence,
-                        start = 1, # relative to 'parent molecule', which is itself (one-based)
-                        cigar = f"{len(sequence)}M", # relative to 'parent molecule', which is itself
-                        strand = '+',
+                        start = parental_start, # The 'parent molecule' for an RNA transcript is the true ('parental') genome
+                        cigar = parental_cigar,
+                        strand = strand,
                         transcript_id = transcript_id, # TODO is this right?
                         source_start=int(ref_start), # Source alignment is relative to reference genome
                         source_cigar=ref_cigar,
