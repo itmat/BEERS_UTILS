@@ -35,21 +35,16 @@ class MoleculePacket:
         return MoleculePacket(molecule_packet_id, sample, molecules)
 
     @staticmethod
-    def from_CAMPAREE_molecule_file(file_path):
+    def from_CAMPAREE_molecule_file(file_path, packet_id):
         """ Load a CAMPAREE text molecule file as input
 
-        CAMPAREE does not assign sample  names and molecule packet ids
-        So we must assign those automatically from filenames.
-        sample is the folder name,
-        molecule packet id is any number in the filename, e.g. 'molecule_file###.txt'"""
+        CAMPAREE does not assign sample names and molecule packet ids
+        So we assign them based off the filename
+        """
         file_path = pathlib.Path(file_path)
-        sample_id = file_path.parent.name
-        sample = Sample(sample_id, sample_id, '', '', False) #TODO: Are these the right extra parameters? Do we care about any of them?
-        packet_id = re.search(r"(\d+)", str(file_path.name))
-        if packet_id:
-            packet_id = int(packet_id.groups()[0])
-        else:
-            packet_id = 0 #No number, just give it ID 0
+        sample_name = file_path.parent.name
+        sample_id = sample_name
+        sample = Sample(sample_id, sample_name, '', '', False) #TODO: Are these the right extra parameters? Do we care about any of them?
 
         # load the molecules from the file
         with file_path.open("r") as data:
@@ -61,14 +56,14 @@ class MoleculePacket:
                 mol = Molecule(
                         Molecule.new_id(transcript_id),
                         sequence,
-                        start = parental_start, # The 'parent molecule' for an RNA transcript is the true ('parental') genome
+                        start = int(parental_start), # The 'parent molecule' for an RNA transcript is the true ('parental') genome
                         cigar = parental_cigar,
                         strand = strand,
                         transcript_id = transcript_id, # TODO is this right?
-                        source_start=int(ref_start), # Source alignment is relative to reference genome
-                        source_cigar=ref_cigar,
-                        source_strand=strand,
-                        source_chrom=chrom)
+                        source_start = int(ref_start), # Source alignment is relative to reference genome
+                        source_cigar = ref_cigar,
+                        source_strand = strand,
+                        source_chrom = chrom)
                 molecules.append(mol)
         mol_packet = MoleculePacket(packet_id, sample, molecules)
         return mol_packet
