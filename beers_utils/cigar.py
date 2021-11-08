@@ -27,7 +27,7 @@ consumes = {
     "I": {"query": True,  "ref": False},
     "D": {"query": False, "ref": True},
     "N": {"query": False, "ref": True},
-    "S": {"query": False, "ref": True},
+    "S": {"query": True,  "ref": False},
     "H": {"query": False, "ref": False},
     "P": {"query": False, "ref": False},
     "=": {"query": True,  "ref": True},
