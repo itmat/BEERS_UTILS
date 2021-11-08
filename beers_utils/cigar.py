@@ -18,6 +18,8 @@ From SAM file format description:
 
  Codes consume query if you advance by the specified number in the query sequence
  They consume reference if you advance by the specified number in the reference sequence
+
+Important function is 'chain_cigar' which applies one cigar ontop of another.
 '''
 
 import re
