@@ -86,22 +86,32 @@ def chain(start1, cigar1, start2, cigar2):
     middle = 1
     ref = start2
 
-    # First advance up to the start1 position of B
-    while middle < start1:
-        op, num = split2.pop(0)
-        if consumes[op]['query']:
-            # must advance the middle index
-            if num + middle > start1:
-                # Advances past the desired position, so truncate the operation
-                remaining = num + middle - start1
-                num = start1 - middle
-                # Add the remaining bit back to the cigar for later
-                split2.insert(0, (op, remaining))
-            middle += num
-        if consumes[op]['ref']:
-            # Must advance the reference index
-            ref += num
+    def advance_to(target):
+        ''' advance along the middle query sequence to a target position
 
+        Returns the distance along the reference sequence that was traversed
+        and the operations of the cigar strings advanced through in the query
+        '''
+        nonlocal middle, ref
+        skipped = 0
+        ops_used = []
+        # Advance until middle == target:
+        while middle < target:
+            op2, num2 = split2.pop(0)
+            if consumes[op2]['query']:
+                if num2 + middle > target:
+                    # Truncate to not go past the target
+                    remaining = num2 + middle - target
+                    num2 = target - middle
+                    split2.insert(0, (op2, remaining))
+                middle += num2
+            if consumes[op2]['ref']:
+                ref += num2
+                skipped += num2
+            ops_used.append( (op2, num2) )
+        return ops_used, skipped
+
+    advance_to(start1)
     assert middle == start1
 
     # Compile the results
@@ -117,43 +127,21 @@ def chain(start1, cigar1, start2, cigar2):
                 # Figure out all the operations in cigar2 that happen between
                 # the start and end of this operation
                 target = middle + num1
-                while middle < target:
-                    op2, num2 = split2.pop(0)
-                    if consumes[op2]['query']:
-                        if num2 + middle > target:
-                            # Truncate to not go past the target
-                            remaining = num2 + middle - target
-                            num2 = target - middle
-                            split2.insert(0, (op2, remaining))
-                        middle += num2
-                    if consumes[op2]['ref']:
-                        ref += num2
+                ops_used, skipped = advance_to(target)
+                for op2, num2 in ops_used:
                     result.append((op2, num2))
             else: #Doesn't consume ref
                 result.append((op1, num1))
         else: # cigar1 doesn't consume query
             if consumes[op1]['ref']:
-                # must advance the reference the required amount
                 target = middle + num1
-                skipped = 0 # Bases of ref skipped over
-                while middle < target:
-                    op2, num2 = split2.pop(0)
-                    if consumes[op2]['query']:
-                        if num2 + middle > target:
-                            # Truncate to the amount needed
-                            remaining = num2 + middle - target
-                            num2 = target - middle
-                            split2.insert(0, (op2, remaining))
-                        middle += num2
-                    if consumes[op2]['ref']:
-                        ref += num2
-                        skipped += num2
+                ops_used, skipped = advance_to(target)
                 # Output the distance in ref skipped
                 result.append((op1, skipped))
             else:
                 # We don't really use these ops (like H or P)
                 # and consuming neither at all kind of doesn't make sense
-                raise NotImplementedError(f"Cannot handle op code {op1}")
+                raise NotImplementedError(f"Cannot handle cigar code {op1}")
 
     result_cigar = unsplit_cigar(result)
     return result_start, result_cigar
@@ -182,9 +170,7 @@ def query_from_alignment(start, cigar, reference):
                 # Deletion, get nothing
                 idx += num
             else:
-                # Neither...
-                # Unclear what the real use case of these is
-                pass
+                raise NotImplementedError(f"Cannot handle cigar code {op}")
     return ''.join(pieces)
 
 if __name__ == '__main__':
@@ -215,3 +201,4 @@ if __name__ == '__main__':
                 print("From ref")
                 print(start2_to_ref, cigar2_to_ref, query2_from_ref)
                 break
+    print("Done testing")
