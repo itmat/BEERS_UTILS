@@ -25,6 +25,7 @@ class Sample:
 
         """
         # TODO Should adapter_sequences be replaced with the Adapter namedtuple, which does contain more information
+        # TODO: do we use adapter sequences from Sample any more? the library prep step for it contains their sequences
         self.sample_id = sample_id
         self.sample_name = sample_name
         self.fastq_file_paths = fastq_file_paths
@@ -77,16 +78,17 @@ class Sample:
     @staticmethod
     def deserialize(data):
         """
-        Re-render the provided data back into a Sample object.  Any leading hash if stripped prior to unpacking the
+        Re-render the provided data back into a Sample object.  Any leading hash is stripped prior to unpacking the
         data string
         :param data: The serialized version of the sample object.
         :return: Sample object populated with the serialized data.
         """
         data = data[1:] if(data.startswith("#")) else data
         sample_id, sample_name, gender, pooled, molecule_count, fastq_file_paths_str, bam_file, adapter_sequences_str = \
-            data.rstrip().split('\t')
+            data.rstrip('\n').split('\t')
         adapter_labels = tuple(str(adapter_label) for adapter_label in adapter_sequences_str.split(','))
         fastq_file_paths = tuple(str(input_file_path) for input_file_path in fastq_file_paths_str.split(','))
+        molecule_count = int(molecule_count) if molecule_count != 'None' else None
         return Sample(sample_id, sample_name, fastq_file_paths,
                       adapter_labels, pooled=pooled, gender=gender,
-                      bam_file_path=bam_file, molecule_count=int(molecule_count))
+                      bam_file_path=bam_file, molecule_count=molecule_count)
