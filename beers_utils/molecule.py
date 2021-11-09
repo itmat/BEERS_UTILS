@@ -253,14 +253,14 @@ class Molecule:
     @staticmethod
     def deserialize(data):
         data = data[1:] if (data.startswith("#")) else data
-        molecule_id, sequence, start, cigar, transcript_id, source_start, source_cigar, source_chrom = data.rstrip().split("\t")
+        molecule_id, sequence, start, cigar, transcript_id, source_start, source_cigar, source_strand, source_chrom = data.rstrip('\n').split('\t')
         return Molecule(
                 molecule_id,
                 sequence,
-                start = start,
+                start = int(start),
                 cigar = cigar,
-                transcript_id = ranscript_id,
-                source_start = source_start,
+                transcript_id = transcript_id,
+                source_start = int(source_start),
                 source_cigar = source_cigar,
                 source_strand = source_strand,
                 source_chrom = source_chrom)
