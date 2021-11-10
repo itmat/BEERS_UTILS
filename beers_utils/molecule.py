@@ -227,7 +227,7 @@ class Molecule:
                f" {self.transcript_id}, {self.source_start}, {self.source_cigar})"
 
     def log_entry(self, note = ''):
-        return "\n".join([
+        return "\t".join([
                 repr(self.molecule_id),
                 repr(self.transcript_id),
                 self.sequence,
