@@ -23,6 +23,7 @@ Important function is 'chain_cigar' which applies one cigar ontop of another.
 '''
 
 import re
+from beers_utils.general_utils import GeneralUtils
 
 consumes = {
     "M": {"query": True,  "ref": True},
@@ -66,10 +67,33 @@ def unsplit_cigar(split):
             last_op = op
     return ''.join(str(num)+op for op, num in pieces)
 
-def chain(start1, cigar1, start2, cigar2):
+def query_seq_length(split):
+    ''' Given split cigar, return length of the query sequence
+
+    NOTE: reference length is not specified in cigar string
     '''
-    Given start1, cigar1 aligning A to B and start2, cigar2 aligning B to C,
-    generate start, cigar aligning A to C
+    length = 0
+    for op, num in split:
+        if consumes[op]['query']:
+            length += num
+    return length
+
+def match_seq_length(split):
+    ''' Given split cigar, return number of bases consumed on reference
+
+    NOTE: reference length is not specified in cigar string
+    '''
+    length = 0
+    for op, num in split:
+        if consumes[op]['ref']:
+            length += num
+    return length
+
+def chain(start1, cigar1, strand1, start2, cigar2, strand2):
+    '''
+    Given start1, cigar1, strand1 aligning A to B
+    and start2, cigar2, strand2 aligning B to C,
+    generate start, cigar, strand aligning A to C
 
     NOTE: if start1, cigar1 imply a longer alignment than the middle query B
     can support, then this will crash. I.e. must truly have alignements from
@@ -79,14 +103,21 @@ def chain(start1, cigar1, start2, cigar2):
     assert start1 > 0
     assert start2 > 0
 
+
+    # Index positions (1-based) on each of the three sequences
+    query = 1 # Aka 'A' sequence
+    middle = 1 # Aka 'B' sequence
+    ref = start2 # Aka 'C' sequence
+
     # TODO: do we want to use a deque instead of a list for these?
     split1 = split_cigar(cigar1)
     split2 = split_cigar(cigar2)
 
-    # Index positions (1-based) relative to the reference
-    query = 1
-    middle = 1
-    ref = start2
+    match_length = match_seq_length(split1)
+    middle_length = query_seq_length(split2)
+    if strand2 == '-':
+        split1 = split1[::-1]
+        start1 = middle_length - start1 - match_length + 2
 
     def advance_to(target):
         ''' advance along the middle query sequence to a target position
@@ -146,9 +177,11 @@ def chain(start1, cigar1, start2, cigar2):
                 raise NotImplementedError(f"Cannot handle cigar code {op1}")
 
     result_cigar = unsplit_cigar(result)
-    return result_start, result_cigar
+    result_strand = "+" if strand1 == strand2 else '-'
 
-def query_from_alignment(start, cigar, reference):
+    return result_start, result_cigar, result_strand
+
+def query_from_alignment(start, cigar, strand, reference):
     '''
     Given start position, cigar string and reference sequence,
     we pull out the query sequence from the alignment
@@ -173,7 +206,10 @@ def query_from_alignment(start, cigar, reference):
                 idx += num
             else:
                 raise NotImplementedError(f"Cannot handle cigar code {op}")
-    return ''.join(pieces)
+    seq = ''.join(pieces)
+    if strand == "-":
+        seq = GeneralUtils.create_complement_strand(seq)
+    return seq
 
 if __name__ == '__main__':
     import numpy
@@ -183,24 +219,26 @@ if __name__ == '__main__':
     for i in range(10000):
         start1 = numpy.random.randint(1,20)
         cigar1 = ''.join(numpy.random.choice(["5M", "6I", "10M", "2D", "5S", "12N"], size=100))
-        query1 = query_from_alignment(start1, cigar1, reference)
+        strand1 = str(numpy.random.choice(["+", "-"]))
+        query1 = query_from_alignment(start1, cigar1, strand1, reference)
 
         if len(query1) > 100:
             start2 = numpy.random.randint(1,20)
             cigar2 = ''.join(numpy.random.choice(['3M', '2I', '15M', '1D', '15N', '3S'], size=5))
-            query2 = query_from_alignment(start2, cigar2, query1)
+            strand2 = str(numpy.random.choice(['+', '-']))
+            query2 = query_from_alignment(start2, cigar2, strand2, query1)
 
-            start2_to_ref, cigar2_to_ref = chain(start2, cigar2, start1, cigar1)
-            query2_from_ref = query_from_alignment(start2_to_ref, cigar2_to_ref, reference)
+            start2_to_ref, cigar2_to_ref, strand2_to_ref = chain(start2, cigar2, strand2, start1, cigar1, strand1)
+            query2_from_ref = query_from_alignment(start2_to_ref, cigar2_to_ref, strand2_to_ref, reference)
             match = query2_from_ref == query2
 
             if not match:
                 print(f"Failed!")
                 print("Query 1")
-                print(start1, cigar1, query1)
+                print(start1, cigar1, query1, strand1)
                 print("Query 2")
                 print(start2, cigar2, query2)
                 print("From ref")
-                print(start2_to_ref, cigar2_to_ref, query2_from_ref)
+                print(start2_to_ref, cigar2_to_ref, strand1, query2_from_ref)
                 break
     print("Done testing")
