@@ -105,9 +105,13 @@ class Molecule:
             trail_length = original_length - idx - 1
             self.cigar = f"{lead_length}M{insertion_length}I{trail_length}M"
             self.sequence = self.sequence[:idx] + insertion_sequence + self.sequence[idx:]
-        new_source_start, new_source_cigar = beers_utils.cigar.chain(self.start, self.cigar, self.source_start, self.source_cigar)
+        new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
+                self.start, self.cigar, "+",
+                self.source_start, self.source_cigar, self.source_strand,
+            )
         self.source_start = new_source_start
         self.source_cigar = new_source_cigar
+        self.source_strand = new_source_strand
 
     def delete(self, deletion_length, position):
         ''' Delete bases starting at position (1-based) '''
@@ -129,9 +133,13 @@ class Molecule:
             trail_length = original_length - deletion_length - lead_length
             self.cigar = f"{lead_length}M{deletion_length}D{trail_length}M"
             self.sequence = self.sequence[:idx+1] + self.sequence[idx + 1 + deletion_length:]
-        new_source_start, new_source_cigar = beers_utils.cigar.chain(self.start, self.cigar, self.source_start, self.source_cigar)
+        new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
+                self.start, self.cigar, "+",
+                self.source_start, self.source_cigar, self.source_strand,
+            )
         self.source_start = new_source_start
         self.source_cigar = new_source_cigar
+        self.source_strand = new_source_strand
 
     def truncate(self, position):
         ''' Truncate (break) a molecule at a given position
@@ -146,9 +154,13 @@ class Molecule:
         self.sequence = self.sequence[position - 1:]
         assert len(self.sequence) > 0, "A molecule truncation must leave behind a molecule with non-zero length"
         self.cigar = f"{len(self.sequence)}M"
-        new_source_start, new_source_cigar = beers_utils.cigar.chain(self.start, self.cigar, self.source_start, self.source_cigar)
+        new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
+                self.start, self.cigar, "+",
+                self.source_start, self.source_cigar, self.source_strand,
+            )
         self.source_start = new_source_start
         self.source_cigar = new_source_cigar
+        self.source_strand = new_source_strand
 
     def make_fragment(self, start,end):
         """ Return a smaller molecule from this molecule
@@ -161,7 +173,14 @@ class Molecule:
         frag_length = len(frag_sequence)
         frag_cigar = f"{frag_length}M" # Fragments match their parents
         frag_id = Molecule.new_id(self.molecule_id)
-        new_source_start, new_source_cigar = beers_utils.cigar.chain(start, frag_cigar, self.source_start, self.source_cigar)
+        try:
+            new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
+                    start, frag_cigar, "+",
+                    self.source_start, self.source_cigar, self.source_strand,
+                )
+        except AssertionError:
+            print(start, end, frag_length, len(self.sequence), frag_cigar)
+            raise
 
         frag = Molecule(frag_id, frag_sequence, start=start, cigar=frag_cigar,
                 source_start = new_source_start,

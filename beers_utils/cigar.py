@@ -115,6 +115,8 @@ def chain(start1, cigar1, strand1, start2, cigar2, strand2):
 
     match_length = match_seq_length(split1)
     middle_length = query_seq_length(split2)
+    assert start1 + match_length - 1<= middle_length, f"Alignment (start1, cigar1, strand1) too long for the queried sequence {start1, match_length, middle_length}"
+
     if strand2 == '-':
         split1 = split1[::-1]
         start1 = middle_length - start1 - match_length + 2
@@ -217,14 +219,14 @@ if __name__ == '__main__':
     reference = ''.join(numpy.random.choice(list("ACGT"), size=1000))
     #Test chain() on many random sequences
     for i in range(10000):
-        start1 = numpy.random.randint(1,20)
+        start1 = numpy.random.randint(1,300)
         cigar1 = ''.join(numpy.random.choice(["5M", "6I", "10M", "2D", "5S", "12N"], size=100))
         strand1 = str(numpy.random.choice(["+", "-"]))
         query1 = query_from_alignment(start1, cigar1, strand1, reference)
 
-        if len(query1) > 100:
-            start2 = numpy.random.randint(1,20)
-            cigar2 = ''.join(numpy.random.choice(['3M', '2I', '15M', '1D', '15N', '3S'], size=5))
+        if len(query1) > 200:
+            start2 = numpy.random.randint(1,50)
+            cigar2 = ''.join(numpy.random.choice(['3M', '2I', '15M', '1D', '15N', '3S'], size=30))
             strand2 = str(numpy.random.choice(['+', '-']))
             query2 = query_from_alignment(start2, cigar2, strand2, query1)
 
