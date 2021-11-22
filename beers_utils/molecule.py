@@ -1,5 +1,6 @@
 import re
 import sys
+import numpy as np
 
 import beers_utils.cigar
 
@@ -95,10 +96,10 @@ class Molecule:
             self.cigar = f"{original_length}M{insertion_length}I"
             self.sequence = self.sequence + insertion_sequence
         else:
-            lead_length = len(self.sequence[:idx + 1])
-            trail_length = original_length - idx - 1
-            self.cigar = f"{lead_length}M{insertion_length}I{trail_length}M"
-            self.sequence = self.sequence[:idx] + insertion_sequence + self.sequence[idx:]
+            head = self.sequence[:idx + 1]
+            tail = self.sequence[idx + 1:]
+            self.cigar = f"{len(head)}M{insertion_length}I{len(tail)}M"
+            self.sequence = head + insertion_sequence + tail
         new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
                 self.start, self.cigar, "+",
                 self.source_start, self.source_cigar, self.source_strand,
@@ -110,23 +111,22 @@ class Molecule:
     def delete(self, deletion_length, position):
         ''' Delete bases starting at position (1-based) '''
         # Position after which to delete
-        # Use a position of -1 to delete from the 5' end
         original_length = len(self.sequence)
         idx = position - 1
         assert 1 <= position <= original_length, "Position must be along the molecule."
         assert idx + deletion_length <= original_length, "Cannot delete past the end of a molecule"
         assert original_length - deletion_length > 0, "Cannot delete the entire molecule in this way."
         if idx == 0:
-            self.cigar = f"{deletion_length}D{original_length}M"
             self.sequence = self.sequence[deletion_length:]
-        elif idx + deleteion_length == original_length:
-            self.cigar = f"{original_length}M{deletion_length}D"
+            self.cigar = f"{deletion_length}D{len(self.sequence)}M"
+        elif idx + deletion_length == original_length:
             self.sequence = self.sequence[:original_length - deletion_length]
+            self.cigar = f"{len(self.sequence)}M{deletion_length}D"
         else:
-            lead_length = len(self.sequence[:idx + 1])
-            trail_length = original_length - deletion_length - lead_length
-            self.cigar = f"{lead_length}M{deletion_length}D{trail_length}M"
-            self.sequence = self.sequence[:idx+1] + self.sequence[idx + 1 + deletion_length:]
+            head = self.sequence[:position]
+            tail = self.sequence[position + deletion_length:]
+            self.cigar = f"{len(head)}M{deletion_length}D{len(tail)}M"
+            self.sequence = head + tail
         new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
                 self.start, self.cigar, "+",
                 self.source_start, self.source_cigar, self.source_strand,
@@ -185,6 +185,52 @@ class Molecule:
                 )
 
         return frag
+
+    def generate_errors(self, substitution_rate, insertion_rate, deletion_rate, max_insertion_length=3, max_deletion_length=3):
+        ''' Perform random 'errors' of the RNA, single nucleotide substitutions, insertions
+        and deletions
+
+        :param substituion_rate: rate (per base) of inserting a random base (possibly matching the original)
+        :param insertion_rate: rate (per base) of inserting a random string of bases
+        :param deletion_rate: rate (per base) of performing a deletion
+        :param max_insertion_length: max length of insertion, uniformly chosen from 1 to this value
+        :param max_deletion_length: max length of deletion, uniformly chosen from 1 to this value
+
+        Note that deletions or insertions may occur adjacent to each other and thereby
+        become longer than the specified max length
+        '''
+
+        substitutions = np.random.random(len(self.sequence)) <= substitution_rate
+        for idx in np.nonzero(substitutions)[0]:
+            random_base = np.random.choice(list("ACGT"))
+            self.substitute(random_base, idx + 1)
+
+        if deletion_rate > 0:
+            # Iteratively advance to the next deletion site, perform the deletion, repeat
+            # Since length of sequence is constantly changing, we don't just compute
+            # the deletion sites in advance like in the substitution case
+            idx = np.random.geometric(deletion_rate) # note: automatically 1-based
+            while idx < len(self.sequence):
+                # Perform a deletion
+                deletion_length = np.random.randint(1, max_deletion_length+1)
+                deletion_length = min(deletion_length ,len(self.sequence) - idx)
+                self.delete(deletion_length, idx)
+
+                # Move to the next deletion, until past the end of the sequence
+                idx += np.random.geometric(deletion_rate)
+
+        if insertion_rate > 0:
+            # Do the same for insertions
+            idx = np.random.geometric(insertion_rate) # note: automatically 1-based
+            while idx < len(self.sequence):
+                # Perform a insertion
+                insert_size = np.random.randint(1, max_insertion_length)
+                insert_seq = ''.join(np.random.choice(list("ACGT"), size=insert_size))
+                self.insert(insert_seq, idx)
+
+                # Move to the next insertion, until past the end of the sequence
+                idx += np.random.geometric(insertion_rate) + insert_size
+
     def __len__(self):
         return len(self.sequence)
 
