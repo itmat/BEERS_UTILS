@@ -65,7 +65,7 @@ def unsplit_cigar(split):
         else:
             pieces.append((op, num))
             last_op = op
-    return ''.join(str(num)+op for op, num in pieces)
+    return ''.join(f"{num}{op}" for op, num in pieces)
 
 def query_seq_length(split):
     ''' Given split cigar, return length of the query sequence
