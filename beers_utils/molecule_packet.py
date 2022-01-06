@@ -4,6 +4,8 @@ import re
 import os
 import pathlib
 import resource
+import collections
+import pandas
 
 class MoleculePacket:
 
@@ -73,3 +75,19 @@ class MoleculePacket:
         ID = next_molecule_packet_id
         next_molecule_packet_id += 1
         return ID
+
+    def write_quantification_file(self, file_path):
+        """ Write out a file of quantified values of transcript-level expression
+
+        :param file_path: Path to the quantification file
+
+        Output is a tab-separated file containing transcript IDs and transcript counts.
+        Transcripts with zero expression are omitted.
+        Useful for summarizing generated transcripts without needing to store all files to disk,
+        for example when generating packets on the fly for BEERS2.
+        """
+
+        quantifications = collections.Counter(mol.transcript_id for mol in self.molecules)
+        quant_series = pandas.Series(quantifications, name = "counts")
+        quant_series.index.name = "transcript_id"
+        quant_series.to_csv(file_path, sep="\t")
