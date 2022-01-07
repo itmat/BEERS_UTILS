@@ -88,6 +88,6 @@ class MoleculePacket:
         """
 
         quantifications = collections.Counter(mol.transcript_id for mol in self.molecules)
-        quant_series = pandas.Series(quantifications, name = "counts")
+        quant_series = pandas.Series(quantifications, name = "counts").sort_index()
         quant_series.index.name = "transcript_id"
         quant_series.to_csv(file_path, sep="\t")
