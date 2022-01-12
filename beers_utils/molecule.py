@@ -144,7 +144,7 @@ class Molecule:
         # Position after which to break the molecule (0 indexed)
         # For the present, assume that the 3 prime end is always the end retained.
         assert position > 0
-        self.start = self.start + position - 1
+        self.start = position
         self.sequence = self.sequence[position - 1:]
         assert len(self.sequence) > 0, "A molecule truncation must leave behind a molecule with non-zero length"
         self.cigar = f"{len(self.sequence)}M"
