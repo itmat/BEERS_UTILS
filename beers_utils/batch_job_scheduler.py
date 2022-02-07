@@ -10,18 +10,12 @@ class BatchJobScheduler(AbstractJobScheduler):
     Provides methods for submitting, monitoring, and terminating jobs using AWS Batch.
     """
 
-    def __init__(
-        self,
-        default_num_processors: int = 1,
-        default_memory_in_mb: int = 6000,
-        queue: str = os.environ["JOB_QUEUE_ARN"],
-        worker: str = os.environ["WORKER_JOB_DEFINITION_NAME"],
-    ):
+    def __init__(self, default_num_processors: int = 1, default_memory_in_mb: int = 6000):
         super().__init__(default_num_processors, default_memory_in_mb)
 
         self.batch = boto3.client("batch")
-        self.queue = queue
-        self.worker = worker
+        self.queue = os.environ["JOB_QUEUE_ARN"]
+        self.worker = os.environ["WORKER_JOB_DEFINITION_NAME"]
 
     def check_job_status(
         self, job_id: str, additional_args: str = ""
