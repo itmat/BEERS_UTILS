@@ -59,7 +59,7 @@ class BatchJobScheduler(AbstractJobScheduler):
                 jobQueue=self.queue,
                 jobDefinition=self.worker,
                 containerOverrides={
-                    "command": ["python3", "worker", job_command],
+                    "command": ["python", "-m", "worker", job_command],
                     "environment": [
                         {"name": "STDOUT_LOG", "value": stdout_logfile},
                         {"name": "STDERR_LOG", "value": stderr_logfile},
