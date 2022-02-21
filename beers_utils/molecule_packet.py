@@ -45,7 +45,7 @@ class MoleculePacket:
         """
         file_path = pathlib.Path(file_path)
         sample_name = file_path.parent.name
-        sample_id = sample_name
+        sample_id = sample_name[len("sample"):] # id will be just the numeric part of the name, e.g. sample2
         sample = Sample(sample_id, sample_name, '', '', False) #TODO: Are these the right extra parameters? Do we care about any of them?
 
         # load the molecules from the file
