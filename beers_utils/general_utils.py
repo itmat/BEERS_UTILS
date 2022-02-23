@@ -25,6 +25,7 @@ class GeneralUtils:
         return candidate_seed
 
     base_complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
+    complement_translate_table = str.maketrans(base_complements)
     # TODO: should we allow 'N's to be complemented? - Yes when reverse complementing reads
 
     @staticmethod
@@ -35,7 +36,8 @@ class GeneralUtils:
         :param strand: RNA/DNA strand to complement.
         :return: complement strand in 5' to 3' direction
         """
-        complement_strand = ''.join(GeneralUtils.base_complements[base] for base in strand)
+        #complement_strand = ''.join(GeneralUtils.base_complements[base] for base in strand)
+        complement_strand = strand.translate(GeneralUtils.complement_translate_table)
         return complement_strand[::-1]
 
     @staticmethod

@@ -2,7 +2,12 @@
 
 ## Installation using python virtual environments
 
-Somewhere under your home directory, clone the BEERS_UTILS repository:
+Make sure you have the following installed on your system:
+
+- git
+- python version 3.10
+
+Clone the BEERS_UTILS git repository into a convenient location:
 
 ```bash
 git clone git@github.com:itmat/BEERS_UTILS.git
@@ -20,7 +25,7 @@ pip install -e /path/to/BEERS_UTILS
 ```
 
 This takes the BEERS_UTILS directory, packages it and creates a link to the packaged
-version in <virtualenv>/lib/python3.6/site-packages. This allows python to find the
+version in \<virtualenv\>/lib/python3.10/site-packages. This allows python to find the
 beers_utils package and subpackages from this virtual environment.
 
 ## Funding
