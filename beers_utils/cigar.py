@@ -23,6 +23,7 @@ Important function is 'chain_cigar' which applies one cigar ontop of another.
 '''
 
 import re
+import copy
 from beers_utils.general_utils import GeneralUtils
 
 consumes = {
@@ -119,6 +120,9 @@ def chain_from_splits(start1, split1, strand1, start2, split2, strand2):
     assert start1 > 0
     assert start2 > 0
 
+    split1 = copy.copy(split1)
+    split2 = copy.copy(split2)
+
     # Index positions (1-based) on each of the three sequences
     query = 1 # Aka 'A' sequence
     middle = 1 # Aka 'B' sequence
@@ -126,7 +130,7 @@ def chain_from_splits(start1, split1, strand1, start2, split2, strand2):
 
     match_length = match_seq_length(split1)
     middle_length = query_seq_length(split2)
-    assert start1 + match_length - 1<= middle_length, f"Alignment {start1, cigar1, strand1} too long for the queried sequence {start1, match_length, middle_length}"
+    assert start1 + match_length - 1<= middle_length, f"Alignment {start1, unsplit_cigar(split1), strand1} too long for the queried sequence {start1, match_length, middle_length, unsplit_cigar(split2)}"
 
     if strand2 == '-':
         split1 = split1[::-1]
