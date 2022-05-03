@@ -161,7 +161,7 @@ class Molecule:
 
         start: 1-based index of the first base included in fragment
         end: 1-based index of the last base included in the fragment"""
-        assert 1 <= start < end <= len(self.sequence)
+        assert 1 <= start <= end <= len(self.sequence), f"Cannot fragment at {start}-{end} from {len(self.sequence)}"
 
         frag_sequence = self.sequence[start-1:end]
         frag_length = len(frag_sequence)
