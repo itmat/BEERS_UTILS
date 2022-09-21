@@ -100,6 +100,7 @@ class Molecule:
             tail = self.sequence[idx + 1:]
             self.cigar = f"{len(head)}M{insertion_length}I{len(tail)}M"
             self.sequence = head + insertion_sequence + tail
+        self.start = 1 # Relative to pre-insertion molecule, new molecule starts at first base
         new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
                 self.start, self.cigar, "+",
                 self.source_start, self.source_cigar, self.source_strand,
@@ -127,6 +128,7 @@ class Molecule:
             tail = self.sequence[position + deletion_length:]
             self.cigar = f"{len(head)}M{deletion_length}D{len(tail)}M"
             self.sequence = head + tail
+        self.start = 1 # Relative to pre-deletion molecule, new molecule starts at first base
         new_source_start, new_source_cigar, new_source_strand = beers_utils.cigar.chain(
                 self.start, self.cigar, "+",
                 self.source_start, self.source_cigar, self.source_strand,
