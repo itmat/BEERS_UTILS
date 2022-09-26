@@ -188,13 +188,14 @@ class Molecule:
 
         return frag
 
-    def generate_errors(self, substitution_rate, insertion_rate, deletion_rate, max_insertion_length=3, max_deletion_length=3):
+    def generate_errors(self, substitution_rate, insertion_rate, deletion_rate, rng, max_insertion_length=3, max_deletion_length=3):
         ''' Perform random 'errors' of the RNA, single nucleotide substitutions, insertions
         and deletions
 
         :param substituion_rate: rate (per base) of inserting a random base (possibly matching the original)
         :param insertion_rate: rate (per base) of inserting a random string of bases
         :param deletion_rate: rate (per base) of performing a deletion
+        :param rng: np.random.Generator instance
         :param max_insertion_length: max length of insertion, uniformly chosen from 1 to this value
         :param max_deletion_length: max length of deletion, uniformly chosen from 1 to this value
 
@@ -202,36 +203,36 @@ class Molecule:
         become longer than the specified max length
         '''
 
-        substitutions = np.random.random(len(self.sequence)) <= substitution_rate
+        substitutions = rng.random(len(self.sequence)) <= substitution_rate
         for idx in np.nonzero(substitutions)[0]:
-            random_base = np.random.choice(list("ACGT"))
+            random_base = rng.choice(list("ACGT"))
             self.substitute(random_base, idx + 1)
 
         if deletion_rate > 0:
             # Iteratively advance to the next deletion site, perform the deletion, repeat
             # Since length of sequence is constantly changing, we don't just compute
             # the deletion sites in advance like in the substitution case
-            idx = np.random.geometric(deletion_rate) # note: automatically 1-based
+            idx = rng.geometric(deletion_rate) # note: automatically 1-based
             while idx < len(self.sequence):
                 # Perform a deletion
-                deletion_length = np.random.randint(1, max_deletion_length+1)
+                deletion_length = rng.integers(1, max_deletion_length+1)
                 deletion_length = min(deletion_length ,len(self.sequence) - idx)
                 self.delete(deletion_length, idx)
 
                 # Move to the next deletion, until past the end of the sequence
-                idx += np.random.geometric(deletion_rate)
+                idx += rng.geometric(deletion_rate)
 
         if insertion_rate > 0:
             # Do the same for insertions
-            idx = np.random.geometric(insertion_rate) # note: automatically 1-based
+            idx = rng.geometric(insertion_rate) # note: automatically 1-based
             while idx < len(self.sequence):
                 # Perform a insertion
-                insert_size = np.random.randint(1, max_insertion_length)
-                insert_seq = ''.join(np.random.choice(list("ACGT"), size=insert_size))
+                insert_size = rng.integers(1, max_insertion_length)
+                insert_seq = ''.join(rng.choice(list("ACGT"), size=insert_size))
                 self.insert(insert_seq, idx)
 
                 # Move to the next insertion, until past the end of the sequence
-                idx += np.random.geometric(insertion_rate) + insert_size
+                idx += rng.geometric(insertion_rate) + insert_size
 
     def __len__(self):
         return len(self.sequence)
