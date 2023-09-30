@@ -23,6 +23,7 @@ Important function is 'chain_cigar' which applies one cigar ontop of another.
 '''
 
 import re
+import copy
 from beers_utils.general_utils import GeneralUtils
 
 consumes = {
@@ -100,22 +101,36 @@ def chain(start1, cigar1, strand1, start2, cigar2, strand2):
     A to B to C and not just random cigar strings
     '''
 
+    split1 = split_cigar(cigar1)
+    split2 = split_cigar(cigar2)
+
+    return chain_from_splits(start1, split1, strand1, start2, split2, strand2)
+
+
+def chain_from_splits(start1, split1, strand1, start2, split2, strand2):
+    ''' same as 'chain' but with pre-split cigars
+
+    split1: use split_cigar(cigar1)
+    split2: use split_cigar(cigar2)
+    Otherwise same as 'chain'
+
+    Use instead of chain if you will resuse the same cigar2 (cigar1) repeatedly
+    '''
+
     assert start1 > 0
     assert start2 > 0
 
+    split1 = copy.copy(split1)
+    split2 = copy.copy(split2)
 
     # Index positions (1-based) on each of the three sequences
     query = 1 # Aka 'A' sequence
     middle = 1 # Aka 'B' sequence
     ref = start2 # Aka 'C' sequence
 
-    # TODO: do we want to use a deque instead of a list for these?
-    split1 = split_cigar(cigar1)
-    split2 = split_cigar(cigar2)
-
     match_length = match_seq_length(split1)
     middle_length = query_seq_length(split2)
-    assert start1 + match_length - 1<= middle_length, f"Alignment (start1, cigar1, strand1) too long for the queried sequence {start1, match_length, middle_length}"
+    assert start1 + match_length - 1<= middle_length, f"Alignment {start1, unsplit_cigar(split1), strand1} too long for the queried sequence {start1, match_length, middle_length, unsplit_cigar(split2)}"
 
     if strand2 == '-':
         split1 = split1[::-1]
@@ -217,7 +232,8 @@ if __name__ == '__main__':
     import numpy
     numpy.random.seed(0)
     reference = ''.join(numpy.random.choice(list("ACGT"), size=1000))
-    #Test chain() on many random sequences
+    print("Test chain() on many random sequences")
+    failed = False
     for i in range(10000):
         start1 = numpy.random.randint(1,300)
         cigar1 = ''.join(numpy.random.choice(["5M", "6I", "10M", "2D", "5S", "12N"], size=100))
@@ -242,5 +258,8 @@ if __name__ == '__main__':
                 print(start2, cigar2, query2)
                 print("From ref")
                 print(start2_to_ref, cigar2_to_ref, strand1, query2_from_ref)
+                failed = True
                 break
     print("Done testing")
+    if not failed:
+        print("No failures")

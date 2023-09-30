@@ -3,12 +3,14 @@ import os
 import glob
 import numpy as np
 
+
 class GeneralUtils:
     """
     Utility scripts expected to have wide applicability across the various modules in this app.
     """
 
     FILES_PER_DIRECTORY_LIMIT = 100
+    BASE_ORDER = ["A", "C", "G", "T"]
 
     @staticmethod
     def generate_seed():
@@ -99,6 +101,16 @@ class GeneralUtils:
             subdirectory_list.append(str(level_path))
             level_file_count //= directory_counts.pop(-1)
         return subdirectory_list
+
+    @staticmethod
+    def sequence_to_matrix(sequence):
+        """
+        Given a sequence as a string of A,C,G,T, return a 4xN numpy array
+        where the i,jth entry is 1 if the jth base is equal to 'ACGT'[i]
+        and 0 otherwise
+        """
+        encoded = np.frombuffer(sequence.encode("ascii"), dtype='uint8')
+        return np.array([encoded == ord(nt) for nt in GeneralUtils.BASE_ORDER]).astype(int)
 
 class BeersUtilsException(Exception):
     """Base class for other exceptions in this package."""
