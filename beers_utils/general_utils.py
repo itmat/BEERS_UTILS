@@ -11,6 +11,7 @@ class GeneralUtils:
 
     FILES_PER_DIRECTORY_LIMIT = 100
     BASE_ORDER = ["A", "C", "G", "T"]
+    ACGT_ORDINALS = np.array([ord(x) for x in BASE_ORDER])
 
     @staticmethod
     def generate_seed():
@@ -110,7 +111,7 @@ class GeneralUtils:
         and 0 otherwise
         """
         encoded = np.frombuffer(sequence.encode("ascii"), dtype='uint8')
-        return np.array([encoded == ord(nt) for nt in GeneralUtils.BASE_ORDER]).astype(int)
+        return (GeneralUtils.ACGT_ORDINALS[:,None] == encoded[None,:]).astype(int)
 
 class BeersUtilsException(Exception):
     """Base class for other exceptions in this package."""
