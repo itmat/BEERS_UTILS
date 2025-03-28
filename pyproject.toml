@@ -1,0 +1,23 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
+
+
+[project]
+name = "BEERS_UTILS"
+version = "0.2.0"
+description = "Utilities for BEERS2 and CAMAPREE"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy==1.24.2",
+    "roman==4.0",
+    "pysam==0.20.0",
+    "pandas==1.5.3",
+    "termcolor==2.2.0",
+    "prettytable==3.6.0",
+    "PyYAML==6.0",
+    "boto3==1.20.47",
+]
+
+[tool.setuptools]
+packages = ["beers_utils"]
